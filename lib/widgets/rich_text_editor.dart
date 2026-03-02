@@ -6,12 +6,14 @@ class RichTextEditor extends StatefulWidget {
   final String? initialContent;
   final Function(String plainText, String richContent) onContentChanged;
   final TextEditingController? plainTextController;
+  final FocusNode? focusNode;
 
   const RichTextEditor({
     super.key,
     this.initialContent,
     required this.onContentChanged,
     this.plainTextController,
+    this.focusNode,
   });
 
   @override
@@ -74,53 +76,60 @@ class _RichTextEditorState extends State<RichTextEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Column(
       children: [
-        // Toolbar
+        // Modern Toolbar
         if (_isToolbarVisible)
           Container(
             decoration: BoxDecoration(
-              color: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-              ),
+              color: isDark ? Colors.grey[900] : Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
             ),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: QuillSimpleToolbar(
               configurations: QuillSimpleToolbarConfigurations(
                 controller: _quillController,
                 showFontFamily: false,
                 showFontSize: false,
-                showHeaderStyle: false,
+                showHeaderStyle: true,
                 showLink: false,
-                showListNumbers: false,
-                showQuote: false,
-                showStrikeThrough: false,
+                showListNumbers: true,
+                showListBullets: true,
+                showQuote: true,
+                showStrikeThrough: true,
                 showInlineCode: false,
                 showCodeBlock: false,
                 showSearchButton: false,
-                multiRowsDisplay: true,
+                showBoldButton: true,
+                showItalicButton: true,
+                showClearFormat: true,
+                showAlignmentButtons: true,
+                showSubscript: false,
+                showSuperscript: false,
+                showColorButton: true,
+                showBackgroundColorButton: true,
+                multiRowsDisplay: false,
               ),
             ),
           ),
         // Editor
         Expanded(
           child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.dividerColor,
-                  width: 1,
-                ),
-              ),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: QuillEditor.basic(
               configurations: QuillEditorConfigurations(
                 controller: _quillController,
                 placeholder: 'Start typing your note...',
                 padding: const EdgeInsets.all(16),
-                autoFocus: true,
+                autoFocus: false,
+                scrollPhysics: const BouncingScrollPhysics(),
               ),
             ),
           ),

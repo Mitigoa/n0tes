@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/note_model.dart';
 import '../models/folder_model.dart';
 import '../utils/date_formatter.dart';
-import '../utils/constants.dart';
 
 class NoteCard extends StatelessWidget {
   final Note note;
@@ -23,14 +22,14 @@ class NoteCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Determine card color: use note's color code if not white, else default theme card color
+    // Determine card color
     Color cardColor = Color(note.colorCode);
     if (note.colorCode == 0xFFFFFFFF) {
-      cardColor = theme.cardTheme.color ?? theme.cardColor;
+      cardColor = theme.cardTheme.color ?? theme.colorScheme.surface;
     } else {
-      // Adjust color for dark mode to be less harsh if dark theme
       if (isDark) {
-        cardColor = Color.alphaBlend(Colors.black.withOpacity(0.6), cardColor);
+        cardColor = Color.alphaBlend(
+            Colors.black.withValues(alpha: 0.6), cardColor);
       }
     }
 
@@ -41,23 +40,25 @@ class NoteCard extends StatelessWidget {
     return Card(
       color: cardColor,
       margin: EdgeInsets.zero,
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: theme.dividerColor.withOpacity(0.1),
+          color: theme.dividerColor.withValues(alpha: 0.1),
           width: 1,
         ),
       ),
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(AppConstants.defaultPadding),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // For staggered grid
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Title row with pin icon
               if (note.title.isNotEmpty) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,100 +66,124 @@ class NoteCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         note.title,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                           color: textColor,
+                          fontSize: 16,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (note.isPinned)
-                      Icon(Icons.push_pin,
-                          size: 16, color: textColor.withOpacity(0.7)),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Icon(
+                          Icons.push_pin,
+                          size: 16,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 8),
               ],
+
+              // Content preview
               if (note.content.isNotEmpty) ...[
                 Text(
                   note.content,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: textColor.withOpacity(0.8),
+                    color: textColor.withValues(alpha: 0.7),
+                    fontSize: 14,
+                    height: 1.4,
                   ),
                   maxLines: 5,
-                  overflow: TextOverflow.fade,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
               ],
-              if (folder != null) ...[
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Color(folder!.colorCode).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.folder,
-                        size: 10,
-                        color: Color(folder!.colorCode),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        folder!.name,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Color(folder!.colorCode),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
+
+              // Footer row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          DateFormatter.formatWithTime(note.updatedAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: textColor.withOpacity(0.6),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                  // Folder chip
+                  if (folder != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color(folder!.colorCode).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.folder,
+                            size: 12,
+                            color: Color(folder!.colorCode),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (DateFormatter.isRecentlyUpdated(
-                            note.createdAt, note.updatedAt))
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              'Updated',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.amber.shade600,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          const SizedBox(width: 4),
+                          Text(
+                            folder!.name,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(folder!.colorCode),
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
+                        ],
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+
+                  // Date and tags indicator
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        DateFormatter.formatShort(note.updatedAt),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: textColor.withValues(alpha: 0.5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      if (note.tags.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.label,
+                                size: 10,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${note.tags.length}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                  if (note.tags.isNotEmpty)
-                    Icon(Icons.label_outline,
-                        size: 12, color: textColor.withOpacity(0.5)),
                 ],
               ),
             ],

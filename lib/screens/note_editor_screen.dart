@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:intl/intl.dart';
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/folder_provider.dart';
@@ -30,6 +31,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _isPinned = false;
   String? _selectedFolderId;
 
+  // Focus nodes to preserve cursor position
+  final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _contentFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +53,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   void dispose() {
     _titleController.dispose();
     _plainTextController.dispose();
+    _titleFocusNode.dispose();
+    _contentFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -55,18 +62,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   void _onContentChanged(String plainText, String richContent) {
     _plainContent = plainText;
     _richContent = richContent;
-
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _saveNoteAsync();
-    });
+    _debounceSave();
   }
 
   void _onTitleChanged() {
+    _debounceSave();
+  }
+
+  void _debounceSave() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    setState(() => _saveStatus = '...');
+
+    _debounce = Timer(const Duration(milliseconds: 1000), () {
       _saveNoteAsync();
     });
   }
@@ -76,10 +84,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
     if (title.isEmpty && _plainContent.isEmpty) return;
 
-    setState(() => _saveStatus = 'Saving...');
-
     try {
-      print('NoteEditor: _saveNoteAsync starting id=$_noteId title="$title"');
       final noteProvider = context.read<NoteProvider>();
       final isNewNote = widget.note == null &&
           noteProvider.notes.where((n) => n.id == _noteId).isEmpty;
@@ -101,85 +106,74 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
       if (isNewNote) {
         await noteProvider.addNote(note);
-        print('NoteEditor: addNote awaited for id=${note.id}');
       } else {
         await noteProvider.updateNote(note);
-        print('NoteEditor: updateNote awaited for id=${note.id}');
       }
 
-      setState(() => _saveStatus = 'Saved');
-      print('NoteEditor: Save completed id=${note.id}');
-      // Clear status after 1 second
-      await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
-        setState(() => _saveStatus = '');
+        setState(() => _saveStatus = 'Saved');
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          setState(() => _saveStatus = '');
+        }
       }
     } catch (e) {
-      print('NoteEditor: Save error: $e');
-      setState(() => _saveStatus = 'Error saving');
-    }
-  }
-
-  void _saveNote() {
-    final title = _titleController.text.trim();
-
-    if (title.isEmpty && _plainContent.isEmpty) return;
-
-    final noteProvider = context.read<NoteProvider>();
-    final isNewNote = widget.note == null &&
-        noteProvider.notes.where((n) => n.id == _noteId).isEmpty;
-
-    final note = Note(
-      id: _noteId,
-      title: title,
-      content: _plainContent,
-      richContent: _richContent,
-      folderId: _selectedFolderId,
-      tags: widget.note?.tags ?? [],
-      colorCode: _selectedColor,
-      isPinned: _isPinned,
-      isArchived: widget.note?.isArchived ?? false,
-      createdAt: widget.note?.createdAt ?? DateTime.now(),
-      updatedAt: DateTime.now(),
-      type: NoteType.text,
-    );
-
-    if (isNewNote) {
-      noteProvider.addNote(note);
-    } else {
-      noteProvider.updateNote(note);
+      if (mounted) {
+        setState(() => _saveStatus = 'Error');
+      }
     }
   }
 
   void _showColorPicker() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Choose Color',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                ColorPicker(
-                  selectedColor: _selectedColor,
-                  onColorSelected: (color) {
-                    setState(() {
-                      _selectedColor = color;
-                    });
-                    _saveNote();
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.color_lens,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Note Color',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  ColorPicker(
+                    selectedColor: _selectedColor,
+                    onColorSelected: (color) {
+                      setState(() => _selectedColor = color);
+                      _saveNoteAsync();
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -191,71 +185,186 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final folderProvider = context.read<FolderProvider>();
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Select Folder',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.folder_off_outlined),
-                title: const Text('No Folder'),
-                trailing:
-                    _selectedFolderId == null ? const Icon(Icons.check) : null,
-                onTap: () {
-                  setState(() => _selectedFolderId = null);
-                  _saveNote();
-                  Navigator.pop(context);
-                },
-              ),
-              const Divider(),
-              Expanded(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: folderProvider.folders.length,
-                  itemBuilder: (context, index) {
-                    final folder = folderProvider.folders[index];
-                    return ListTile(
-                      leading:
-                          Icon(Icons.folder, color: Color(folder.colorCode)),
-                      title: Text(folder.name),
-                      trailing: _selectedFolderId == folder.id
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () {
-                        setState(() => _selectedFolderId = folder.id);
-                        _saveNote();
-                        Navigator.pop(context);
-                      },
-                    );
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.folder,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Select Folder',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.folder_off_outlined, size: 20),
+                  ),
+                  title: const Text('No Folder'),
+                  trailing: _selectedFolderId == null
+                      ? Icon(Icons.check,
+                          color: Theme.of(context).colorScheme.primary)
+                      : null,
+                  onTap: () {
+                    setState(() => _selectedFolderId = null);
+                    _saveNoteAsync();
+                    Navigator.pop(context);
                   },
                 ),
-              ),
-            ],
+                const Divider(height: 1),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: folderProvider.folders.length,
+                    itemBuilder: (context, index) {
+                      final folder = folderProvider.folders[index];
+                      return ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Color(folder.colorCode).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.folder,
+                              color: Color(folder.colorCode), size: 20),
+                        ),
+                        title: Text(folder.name),
+                        trailing: _selectedFolderId == folder.id
+                            ? Icon(Icons.check,
+                                color: Theme.of(context).colorScheme.primary)
+                            : null,
+                        onTap: () {
+                          setState(() => _selectedFolderId = folder.id);
+                          _saveNoteAsync();
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.push_pin_outlined),
+                  title: Text(_isPinned ? 'Unpin Note' : 'Pin Note'),
+                  onTap: () {
+                    setState(() => _isPinned = !_isPinned);
+                    _saveNoteAsync();
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.create_new_folder_outlined),
+                  title: const Text('Move to Folder'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showFolderSelector();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.color_lens_outlined),
+                  title: const Text('Change Color'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showColorPicker();
+                  },
+                ),
+                if (widget.note != null)
+                  ListTile(
+                    leading: const Icon(Icons.delete_outline, color: Colors.red),
+                    title:
+                        const Text('Delete', style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      context.read<NoteProvider>().deleteNote(_noteId);
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
+                  ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String get _formattedDate {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final noteDate =
+        DateTime(widget.note?.updatedAt.year ?? now.year, widget.note?.updatedAt.month ?? now.month, widget.note?.updatedAt.day ?? now.day);
+
+    if (noteDate == today) {
+      return 'Today, ${DateFormat('h:mm a').format(widget.note?.updatedAt ?? now)}';
+    }
+    return DateFormat('MMM d, y • h:mm a').format(widget.note?.updatedAt ?? now);
+  }
+
   @override
   Widget build(BuildContext context) {
-    Color bgColor = Color(_selectedColor);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_selectedColor == 0xFFFFFFFF) {
-      bgColor = Theme.of(context).scaffoldBackgroundColor;
-    } else if (isDark) {
-      bgColor = Color.alphaBlend(Colors.black.withValues(alpha: 0.6), bgColor);
-    }
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) async {
@@ -264,113 +373,177 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: bgColor,
+        backgroundColor: _selectedColor == 0xFFFFFFFF
+            ? theme.scaffoldBackgroundColor
+            : isDark
+                ? Color.alphaBlend(
+                    Colors.black.withValues(alpha: 0.6), Color(_selectedColor))
+                : Color(_selectedColor),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              await _saveNoteAsync();
-              if (context.mounted) {
-                Navigator.pop(context);
-              }
-            },
-          ),
-          title: _saveStatus.isNotEmpty
-              ? Text(
-                  _saveStatus,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _saveStatus == 'Saved'
-                        ? Colors.green
-                        : _saveStatus == 'Error saving'
-                            ? Colors.red
-                            : Colors.orange,
-                  ),
-                )
-              : null,
-          actions: [
-            IconButton(
-              icon: Icon(_isPinned ? Icons.push_pin : Icons.push_pin_outlined),
-              tooltip: 'Pin note',
-              onPressed: () {
-                setState(() => _isPinned = !_isPinned);
-                _saveNote();
-              },
+          leading: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
             ),
-            IconButton(
-              icon: const Icon(Icons.color_lens_outlined),
-              tooltip: 'Change color',
-              onPressed: _showColorPicker,
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                switch (value) {
-                  case 'folder':
-                    _showFolderSelector();
-                    break;
-                  case 'delete':
-                    if (widget.note != null) {
-                      context.read<NoteProvider>().deleteNote(_noteId);
-                      Navigator.pop(context);
-                    }
-                    break;
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () async {
+                await _saveNoteAsync();
+                if (context.mounted) {
+                  Navigator.pop(context);
                 }
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'folder',
-                  child: Row(
-                    children: [
-                      Icon(Icons.create_new_folder_outlined, size: 20),
-                      SizedBox(width: 12),
-                      Text('Move to folder'),
-                    ],
-                  ),
+            ),
+          ),
+          actions: [
+            // Save status indicator
+            if (_saveStatus.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _saveStatus == 'Saved'
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                if (widget.note != null)
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                        SizedBox(width: 12),
-                        Text('Delete', style: TextStyle(color: Colors.red)),
-                      ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_saveStatus == '...')
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            theme.colorScheme.primary,
+                          ),
+                        ),
+                      )
+                    else if (_saveStatus == 'Saved')
+                      Icon(Icons.check_circle, size: 14, color: Colors.green[700])
+                    else
+                      Icon(Icons.error_outline, size: 14, color: Colors.red[700]),
+                    const SizedBox(width: 6),
+                    Text(
+                      _saveStatus,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _saveStatus == 'Saved'
+                            ? Colors.green[700]
+                            : _saveStatus == 'Error'
+                                ? Colors.red[700]
+                                : theme.colorScheme.onSurface,
+                      ),
                     ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
+            const SizedBox(width: 8),
+            // Pin button
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: _isPinned
+                    ? theme.colorScheme.primaryContainer
+                    : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  _isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  color: _isPinned
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onSurface,
+                ),
+                tooltip: 'Pin note',
+                onPressed: () {
+                  setState(() => _isPinned = !_isPinned);
+                  _saveNoteAsync();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            // More options button
+            Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: _showMoreOptions,
+              ),
             ),
           ],
         ),
         body: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Date info
+              if (widget.note != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 14,
+                        color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formattedDate,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
               // Title input
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: TextField(
                   controller: _titleController,
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
+                  focusNode: _titleFocusNode,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'Title',
+                    hintStyle: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
                     border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
                   ),
                   maxLines: null,
                   textInputAction: TextInputAction.next,
                   onChanged: (_) => _onTitleChanged(),
+                  onSubmitted: (_) {
+                    FocusScope.of(context).requestFocus(_contentFocusNode);
+                  },
                 ),
               ),
-              const Divider(height: 1),
+              const SizedBox(height: 8),
               // Rich text editor
               Expanded(
                 child: RichTextEditor(
                   initialContent:
                       _richContent.isNotEmpty ? _richContent : _plainContent,
                   plainTextController: _plainTextController,
+                  focusNode: _contentFocusNode,
                   onContentChanged: _onContentChanged,
                 ),
               ),

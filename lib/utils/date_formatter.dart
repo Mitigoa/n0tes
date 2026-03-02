@@ -49,4 +49,7 @@ class DateFormatter {
     return updatedAt.difference(createdAt).inMinutes > 1 &&
         DateTime.now().difference(updatedAt).inMinutes < 60;
   }
+
+  /// Short format for note cards
+  static String formatShort(DateTime date) => format(date);
 }

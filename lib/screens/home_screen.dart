@@ -54,39 +54,58 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showNoteModal(note) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                  note.isPinned ? Icons.push_pin_outlined : Icons.push_pin),
-              title: Text(note.isPinned ? 'Unpin' : 'Pin'),
-              onTap: () {
-                context.read<NoteProvider>().togglePin(note);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(note.isArchived ? Icons.unarchive : Icons.archive),
-              title: Text(note.isArchived ? 'Unarchive' : 'Archive'),
-              onTap: () {
-                context.read<NoteProvider>().toggleArchive(note);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Delete', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                context.read<NoteProvider>().deleteNote(note.id);
-                Navigator.pop(context);
-              },
-            ),
-          ],
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Icon(
+                  note.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: Text(note.isPinned ? 'Unpin' : 'Pin'),
+                onTap: () {
+                  context.read<NoteProvider>().togglePin(note);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  note.isArchived ? Icons.unarchive : Icons.archive_outlined,
+                ),
+                title: Text(note.isArchived ? 'Unarchive' : 'Archive'),
+                onTap: () {
+                  context.read<NoteProvider>().toggleArchive(note);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  context.read<NoteProvider>().deleteNote(note.id);
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -99,15 +118,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final pinnedNotes = noteProvider.pinnedNotes;
     final unpinnedNotes = noteProvider.unpinnedNotes;
-    // Debug: log counts (prefixed with app name)
-    print(
-        'Quicknotes: HomeScreen.build: total=${noteProvider.notes.length} pinned=${pinnedNotes.length} unpinned=${unpinnedNotes.length}');
     final isSearching = _isSearching || _searchController.text.isNotEmpty;
     final displayNotes = isSearching ? noteProvider.notes : unpinnedNotes;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: _isSearching ? '' : 'Quicknotes',
+        title: _isSearching ? '' : 'n0tes',
         leading: _isSearching
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -134,55 +151,112 @@ class _HomeScreenState extends State<HomeScreen> {
                     hintText: 'Search notes...',
                     border: InputBorder.none,
                     hintStyle: TextStyle(
-                        color: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.color
-                            ?.withOpacity(0.5)),
+                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                    ),
                   ),
                   onChanged: _onSearchChanged,
                 ),
               ),
             )
           else
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                setState(() {
-                  _isSearching = true;
-                });
-              },
+            Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = true;
+                  });
+                },
+              ),
             ),
           if (!_isSearching) ...[
-            IconButton(
-              icon: Icon(
-                  _isGridView ? Icons.view_agenda_outlined : Icons.grid_view),
-              onPressed: () {
-                setState(() {
-                  _isGridView = !_isGridView;
-                });
-              },
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(
+                    _isGridView ? Icons.view_agenda_outlined : Icons.grid_view),
+                onPressed: () {
+                  setState(() {
+                    _isGridView = !_isGridView;
+                  });
+                },
+              ),
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'folders') {
-                  _navigateToFolders();
-                } else if (value == 'settings') {
-                  _navigateToSettings();
-                }
-              },
-              itemBuilder: (BuildContext context) {
-                return [
-                  const PopupMenuItem<String>(
-                    value: 'folders',
-                    child: Text('Folders'),
-                  ),
-                  const PopupMenuItem<String>(
-                    value: 'settings',
-                    child: Text('Settings'),
-                  ),
-                ];
-              },
+            const SizedBox(width: 8),
+            Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                onSelected: (value) {
+                  if (value == 'folders') {
+                    _navigateToFolders();
+                  } else if (value == 'settings') {
+                    _navigateToSettings();
+                  }
+                },
+                itemBuilder: (BuildContext context) {
+                  return [
+                    PopupMenuItem<String>(
+                      value: 'folders',
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.folder_outlined,
+                              size: 18,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('Folders'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'settings',
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.secondaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.settings_outlined,
+                              size: 18,
+                              color: theme.colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('Settings'),
+                        ],
+                      ),
+                    ),
+                  ];
+                },
+              ),
             ),
           ]
         ],
@@ -195,19 +269,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 await folderProvider.loadFolders();
               },
               child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   if (!isSearching && pinnedNotes.isNotEmpty) ...[
-                    const SliverToBoxAdapter(
+                    SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
-                        child: Text(
-                          'PINNED',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                            letterSpacing: 1.2,
-                          ),
+                        padding:
+                            const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.push_pin,
+                                    size: 14,
+                                    color:
+                                        theme.colorScheme.onPrimaryContainer,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'PINNED',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme
+                                          .colorScheme.onPrimaryContainer,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -223,35 +324,94 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (!isSearching &&
                       pinnedNotes.isNotEmpty &&
                       displayNotes.isNotEmpty)
-                    const SliverToBoxAdapter(
+                    SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
-                        child: Text(
-                          'OTHERS',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                            letterSpacing: 1.2,
-                          ),
+                        padding:
+                            const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'OTHERS',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme
+                                      .textTheme.bodySmall?.color
+                                      ?.withValues(alpha: 0.7),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  NoteGrid(
-                    notes: displayNotes,
-                    folders: folderProvider.folders,
-                    isGridView: _isGridView,
-                    onTap: _editNote,
-                    onLongPress: _showNoteModal,
-                    asSliver: true,
-                  ),
+                  if (displayNotes.isEmpty && !isSearching)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _buildEmptyState(theme),
+                    )
+                  else
+                    NoteGrid(
+                      notes: displayNotes,
+                      folders: folderProvider.folders,
+                      isGridView: _isGridView,
+                      onTap: _editNote,
+                      onLongPress: _showNoteModal,
+                      asSliver: true,
+                    ),
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _createNewNote,
         elevation: 2,
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('New Note'),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.edit_note,
+              size: 48,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Start your first note',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap the button below to create a note',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 80),
+        ],
       ),
     );
   }
